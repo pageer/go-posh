@@ -2,7 +2,7 @@ go -- quick directory switching
 ===============================
 
 Download the latest go packages from here:
-    (archive) http://go-tool.googlecode.com/files/go-1.2.0.zip
+    (archive) http://go-tool.googlecode.com/files/go-1.2.1.zip
 
 
 Home            : http://trentm.com/projects/go/
@@ -23,11 +23,17 @@ Log](#changelog) below for more.
 
 This release includes the following patches:
 * Added support for Powershell.
-* Made added built-in shortcut "-" pointing to the OLDPWD environment variable
-  (uses built-in shell support in UNIX, emulates in Windows)
+* Made added built-in shortcut "-" pointing to the OLDPWD environment 
+  variable (uses built-in shell support in UNIX, emulates in Windows).
 * When invoked without any argument, change to home directory.
 * Resolve unique prefixes of shortcuts.
-* Made -o option work without win32api bindings.
+* Resolve unique prefixes of path components.  For example, if "f" is a 
+  shortcut for C:\foo and C:\foo\bar\bazz exists, "go f/b/b" will go to it.
+* Detect home directory in Windows via USERPROFILE.
+* Made -o option work without win32api bindings and function on other 
+  platforms (use FILE_MANAGER env var on UNIX).
+* Make -o option apply to current directory when no argument is given.
+* Added -p option to print the resolved shortcut path rather than cd to it.
 
 
 Why go?
@@ -46,6 +52,16 @@ and
 
     C:\> go ko/test
     D:\trentm\main\Apps\Komodo-devel\test>
+
+In addition, go supports resolving unique prefixes of both shortcuts 
+and path components.  So the above example could also be written as:
+
+    C:\> go k/t
+    D:\trentm\main\Apps\Komodo-devel\test>
+
+This is assuming that no other shortcut starts with "k" and the 
+Komodo-devel directory contains no other directory (files are OK)
+that starts with "t".
 
 Think of it as a super `cd`. 
 
