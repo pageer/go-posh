@@ -98,6 +98,16 @@ set GO_SHELL_SCRIPT=%TEMP%\__tmp_go.bat
 call python -m go %1 %2 %3 %4 %5 %6 %7 %8 %9
 if exist %GO_SHELL_SCRIPT% call %GO_SHELL_SCRIPT%
 set GO_SHELL_SCRIPT=""",
+    "powershell": """\
+# Windows Powershell driver for 'go' (http://code.google.com/p/go-tool/).
+$env:SHELL = "powershell"
+$env:GO_SHELL_SCRIPT=$env:TEMP+"\__tmp_go.ps1"
+python -m go $args
+if (Test-Path $env:GO_SHELL_SCRIPT) {
+	. $env:GO_SHELL_SCRIPT
+}
+$env:GO_SHELL_SCRIPT = '';
+""",
     "sh": """\
 # Bash shell driver for 'go' (http://code.google.com/p/go-tool/).
 function go {
@@ -151,6 +161,10 @@ def getDefaultShortcuts():
     }
     try:
         shortcuts['~'] = os.environ['HOME']
+    except KeyError:
+        pass
+    try:
+        shortcuts['-'] = os.environ['OLDPWD']
     except KeyError:
         pass
     return shortcuts
@@ -235,9 +249,11 @@ def resolvePath(path):
             # shortcut in Bash so try to determine if it is likely that
             # the user typed it and act accordingly.
             home = os.path.expanduser('~')
-            if path.startswith(home):
+            if path.startswith(home) and path != home:
                 tag, suffix = '~', path[len(home)+1:]
                 target = shortcuts[tag]
+            elif getShortcutPrefix(tag, shortcuts) != 0:
+                target = shortcuts[getShortcutPrefix(tag, shortcuts)]
             elif os.path.isdir(path):
                 target = ""
                 suffix = path
@@ -249,7 +265,24 @@ def resolvePath(path):
         raise GoError("no path was given")
 
     return target
-    
+
+
+def getShortcutPrefix(path, shortcuts):
+    """Returns the full name for a shortcut based on a prefix.
+
+    If the path is a unique prefix of one of the shortcuts, returns
+    that shortcut's path.  Otherwise, returns 0.
+    """
+    ret = 0
+    for name in shortcuts:
+        if name.startswith(path):
+            # If nothing yet found, save.  If already found, quit.
+            if ret == 0:
+                ret = name
+            else:
+                return 0
+    return ret
+
 
 def generateShellScript(scriptName, path=None):
     """Generate a shell script with the given name to change to the
@@ -265,7 +298,17 @@ def generateShellScript(scriptName, path=None):
     else:
         target = resolvePath(path)
 
-    if sys.platform.startswith("win"):
+    if sys.platform.startswith("win") and _getShell() == 'powershell':
+        fbat = open(scriptName, 'w')
+        if target:
+            drive, tail = os.path.splitdrive(target)
+            if drive:
+                fbat.write('%s\n' % drive)
+            fbat.write("$env:OLDPWD='%s'\n" % os.getcwd());
+            fbat.write('cd "%s"\n' % target)
+            fbat.write('$Host.UI.RawUI.WindowTitle = "%s"\n' % target)
+        fbat.close()
+    elif sys.platform.startswith("win"):
         fbat = open(scriptName, 'w')
         fbat.write('@echo off\n')
         if target:
@@ -273,6 +316,7 @@ def generateShellScript(scriptName, path=None):
             fbat.write('@echo off\n')
             if drive:
                 fbat.write('call %s\n' % drive)
+            fbat.write('set OLDPWD=%s\n' % os.getcwd());
             fbat.write('call cd "%s"\n' % target)
             fbat.write('title "%s"\n' % target)
         fbat.close()
@@ -355,15 +399,17 @@ def error(msg):
 
 
 def _getShell():
-    if sys.platform == "win32":
-        #assert "cmd.exe" in os.environ["ComSpec"]
-        return "cmd"
-    elif "SHELL" in os.environ:
+    if "SHELL" in os.environ:
         shell_path = os.environ["SHELL"]
         if "/bash" in shell_path or "/sh" in shell_path:
             return "sh"
         elif "/tcsh" in shell_path or "/csh" in shell_path:
             return "csh"
+        elif "powershell" in shell_path:
+            return "powershell"
+    elif sys.platform == "win32":
+        #assert "cmd.exe" in os.environ["ComSpec"]
+        return "cmd"
     else:
         raise InternalGoError("couldn't determine your shell (SHELL=%r)"
                               % os.environ.get("SHELL"))
@@ -389,8 +435,13 @@ def setup():
     print "* * *"
 
 
-    if shell == "cmd":
-        # Need a install candidate dir for "go.bat".
+    if shell == "cmd" or shell == "powershell":
+        # Need a install candidate dir for "go.bat"/"go.ps1".
+        if shell == "cmd":
+            shell_script_name = "go.bat"
+        else:
+            shell_script_name = "go.ps1"
+
         nprefix = _normpath(sys.prefix)
         ncandidates = set()
         candidates = []
@@ -409,13 +460,13 @@ def setup():
 
         print """\
 It appears that `go' is not setup properly in your environment. Typing
-`go' must end up calling `go.bat' somewhere on your PATH and *not* `go.py'
+`go' must end up calling `%s' somewhere on your PATH and *not* `go.py'
 directly. This is how `go' can change the directory in your current shell.
 
-You'll need a file "go.bat" with the following contents in a directory on
+You'll need a file "%s" with the following contents in a directory on
 your PATH:
 
-%s""" % _indent(driver)
+%s""" % (shell_script_name, shell_script_name, _indent(driver))
 
         if candidates:
             print "\nCandidate directories are:\n"
@@ -424,9 +475,9 @@ your PATH:
 
             print
             answer = _query_custom_answers(
-                "If you would like this script to create `go.bat' for you in\n"
+                "If you would like this script to create `%s' for you in\n"
                     "one of these directories, enter the number of that\n"
-                    "directory. Otherwise, enter 'no' to not create `go.bat'.",
+                    "directory. Otherwise, enter 'no' to not create `%s'." % (shell_script_name, shell_script_name),
                 [str(i+1) for i in range(len(candidates))] + ["&no"],
                 default="no",
             )
@@ -434,7 +485,7 @@ your PATH:
                 pass
             else:
                 dir = candidates[int(answer)-1]
-                path = join(dir, "go.bat")
+                path = join(dir, shell_script_name)
                 print "\nCreating `%s'." % path
                 print "You should now be able to run `go --help'."
                 open(path, 'w').write(driver)
@@ -588,6 +639,17 @@ def _normpath(path):
     return n
 
 
+def getHomeDir():
+    try:
+        ret = os.environ['HOME']
+    except KeyError:
+        try:
+            ret = os.environ['USERPROFILE']
+        except:
+            error('Cannot find home directory.')
+    return ret
+
+
 #---- mainline
 
 def main(argv):
@@ -674,12 +736,18 @@ def main(argv):
             return 1
 
     elif action == "cd":
-        if len(args) != 1:
+        if len(args) > 1:
             error("Incorrect number of arguments. argv: %s" % argv)
             #error("Usage: go [options...] shortcut[/subpath]")
             return 1
-        path = args[0]
+            
+        if len(args) == 1:
+            path = args[0]
+        else:
+            path = getHomeDir()
+        
         if _subsystem == "console":
+
             try:
                 generateShellScript(shellScript, path)
             except KeyError, ex:
@@ -700,11 +768,12 @@ def main(argv):
                 error("Could not determine shell. No COMSPEC environment "
                       "variable.")
                 return 1
-
+            
             argv = [comspec, "/k",      # Does command.com support '/k'?
                     "cd", "/D", '"%s"' % dir]
             if os.path.basename(comspec).lower() == "cmd.exe":
                 argv += ["&&", "title", '%s' % dir]
+
             os.spawnv(os.P_NOWAIT, comspec, argv)
             
         else:
@@ -738,19 +807,57 @@ def main(argv):
         except GoError, ex:
             error("Error resolving '%s': %s" % (path, ex))
             return 1
-
-        import win32api
+           
         try:
-            explorerExe, offset = win32api.SearchPath(None, "explorer.exe")
-        except win32api.error, ex:
-            error("Could not find 'explorer.exe': %s" % ex)
+            comspec = os.environ["COMSPEC"]
+        except KeyError:
+            error("Could not determine shell. No COMSPEC environment "
+                  "variable.")
             return 1
 
+        try:
+            import win32api
+            try:
+                explorerExe, offset = win32api.SearchPath(None, "explorer.exe")
+            except win32api.error, ex:
+                error("Could not find 'explorer.exe': %s" % ex)
+                return 1
+        except ImportError:
+            explorerExe = _findOnPath("explorer.exe")
+            if explorerExe == 0:
+                error("Could not find path to Explorer.exe")
+                return 1
+        
         os.spawnv(os.P_NOWAIT, explorerExe, [explorerExe, '/E,"%s"' % dir])
+
 
     else:
         error("Internal Error: unknown action: '%s'\n")
         return 1
+
+def _findOnPath(prog):
+    """Find the file prog on the system PATH.  
+
+    Returns the full path to prog or false if not found.
+    This only tests if the file name exists, not if it is executable.
+    """
+    if sys.platform.startswith("win"):
+        sep = ';'
+    else:
+        sep = ':'
+
+    try:
+        path = os.environ["PATH"]
+    except KeyError:
+        error("Could not determine current PATH.")
+        return 1
+
+    for folder in path.split(sep):
+        fullpath = os.path.join(folder, prog)
+        if os.path.isfile(fullpath):
+            return fullpath
+
+    return 0
         
 
 if __name__ == "__main__":

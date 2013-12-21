@@ -21,6 +21,14 @@ pages](http://trentm.com/projects/) to the [go-tool Google Code
 project](http://code.google.com/p/go-tool/).  See the [Change
 Log](#changelog) below for more.
 
+This release includes the following patches:
+* Added support for Powershell.
+* Made added built-in shortcut "-" pointing to the OLDPWD environment variable
+  (uses built-in shell support in UNIX, emulates in Windows)
+* When invoked without any argument, change to home directory.
+* Resolve unique prefixes of shortcuts.
+* Made -o option work without win32api bindings.
+
 
 Why go?
 -------
@@ -59,6 +67,20 @@ Download the latest (1) `go` source package, (2) unzip it, (3) run
 
 If your install fails then please visit [the Troubleshooting
 FAQ](http://trentm.com/faq.html#troubleshooting-python-package-installation).
+
+Please note that the "go.bat" file for use with Windows cmd.exe does not work
+with Powershell.  To use go with Windows Powershell, you must set an environment 
+variable to indicate your shell.  You can do this by adding the following line 
+to your Powershell profile:
+
+    $env:SHELL = "powershell"
+
+You can then run the following from the Powershell prompt to apply the change
+and generate the "go.ps1" wrapper:
+
+    . $profile
+    python -m go
+
 
 
 Getting Started
