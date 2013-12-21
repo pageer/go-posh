@@ -1,0 +1,21 @@
+Metadata-Version: 1.0
+Name: go
+Version: 1.2.1
+Summary: Quick directory changing (super-cd)
+Home-page: http://code.google.com/p/go-tool/
+Author: Trent Mick
+Author-email: trentm@gmail.com
+License: http://www.opensource.org/licenses/mit-license.php
+Description: 'go' is a simple command line script to simplify jumping between
+        directories in the shell. You can create shortcut names for commonly
+        used directories and invoke 'go <shortcut>' to switch to that directory
+        -- among other little features.
+        
+Platform: any
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 2
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
