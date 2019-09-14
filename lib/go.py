@@ -499,7 +499,7 @@ def setup():
         nhome = _normpath(
             os.environ["HOMEDRIVE"] + os.environ["HOMEPATH"])
 
-    print "* * *"
+    print("* * *")
 
 
     if shell == "cmd" or shell == "powershell":
@@ -525,7 +525,7 @@ def setup():
                     candidates.append(dir)
         #print candidates
 
-        print """\
+        print("""\
 It appears that `go' is not setup properly in your environment. Typing
 `go' must end up calling `%s' somewhere on your PATH and *not* `go.py'
 directly. This is how `go' can change the directory in your current shell.
@@ -533,14 +533,14 @@ directly. This is how `go' can change the directory in your current shell.
 You'll need a file "%s" with the following contents in a directory on
 your PATH:
 
-%s""" % (shell_script_name, shell_script_name, _indent(driver))
+%s""" % (shell_script_name, shell_script_name, _indent(driver)))
 
         if candidates:
-            print "\nCandidate directories are:\n"
+            print("\nCandidate directories are:\n")
             for i, dir in enumerate(candidates):
-                print "  [%s] %s" % (i+1, dir)
+                print("  [%s] %s" % (i+1, dir))
 
-            print
+            print()
             answer = _query_custom_answers(
                 "If you would like this script to create `%s' for you in\n"
                     "one of these directories, enter the number of that\n"
@@ -553,11 +553,11 @@ your PATH:
             else:
                 dir = candidates[int(answer)-1]
                 path = join(dir, shell_script_name)
-                print "\nCreating `%s'." % path
-                print "You should now be able to run `go --help'."
+                print("\nCreating `%s'." % path)
+                print("You should now be able to run `go --help'.")
                 open(path, 'w').write(driver)
     elif shell == "sh":
-        print """\
+        print("""\
 It appears that `go' is not setup properly in your environment. Typing
 `go' must end up calling the Bash function `go' and *not* `go.py'
 directly. This is how `go' can change the directory in your current shell.
@@ -568,7 +568,7 @@ You'll need to have the following function in your shell startup script
 %s
 
 To just play around in your current shell, simple cut and paste this
-function.""" % _indent(driver)
+function.""" % _indent(driver))
 
         candidates = ["~/.bashrc", "~/.bash_profile", "~/.bash_login",
                       "~/.profile"]
@@ -581,7 +581,7 @@ Otherwise, enter `no'."""
             for i, path in enumerate(candidates):
                 q += "\n (%d) %s" % (i+1, path)
             answers = [str(i+1) for i in range(len(candidates))] + ["&no"]
-            print
+            print()
             answer = _query_custom_answers(q, answers, default="no")
             if answer == "no":
                 pass
@@ -593,12 +593,12 @@ Otherwise, enter `no'."""
                     f.write('\n\n'+driver)
                 finally:
                     f.close()
-                print
-                print "`function go' appended to `%s'." % path
-                print "Run `source %s` to enable this for this shell." % path
-                print "You should then be able to run `go --help'."
+                print()
+                print("`function go' appended to `%s'." % path)
+                print("Run `source %s` to enable this for this shell." % path)
+                print("You should then be able to run `go --help'.")
     else:
-        print """\
+        print("""\
 It appears that `go' is not setup properly in your environment. Typing
 `go' must end up calling the shell function `go' and *not* `go.py'
 directly. This is how `go' can change the directory in your current shell.
@@ -612,14 +612,14 @@ your feedback on that so I can update this script. Please add an issue here:
 
     http://code.google.com/p/go-tool/issues/list
 
-Thanks!""" % (_indent(_gDriverFromShell["sh"]), shell)
+Thanks!""" % (_indent(_gDriverFromShell["sh"]), shell))
 
-    print "* * *"
+    print("* * *")
 
 
 # Recipe: query_custom_answers (1.0)
 def _query_custom_answers(question, answers, default=None):
-    """Ask a question via raw_input() and return the chosen answer.
+    """Ask a question via input() and return the chosen answer.
     
     @param question {str} Printed on stdout before querying the user.
     @param answers {list} A list of acceptable string answers. Particular
@@ -671,7 +671,7 @@ def _query_custom_answers(question, answers, default=None):
 
     while 1:
         sys.stdout.write(leader)
-        choice = raw_input().lower()
+        choice = input().lower()
         if default is not None and choice == '':
             return default
         elif choice in answer_from_valid_choice:
@@ -737,7 +737,7 @@ def main(argv):
         longopts = ['help', 'version', 'cd', 'print', 'set', 'add-current',
                     'delete', 'list', 'open']
         optlist, args = getopt.getopt(argv[1:], shortopts, longopts)
-    except getopt.GetoptError, ex:
+    except getopt.GetoptError as ex:
         msg = ex.msg
         if ex.opt in ('d', 'dump'):
             msg += ": old -d|--dump option is now -l|--list"
@@ -775,7 +775,7 @@ def main(argv):
         name, value = args[0], os.getcwd()
         try:
             setShortcut(name, value)
-        except GoError, ex:
+        except GoError as ex:
             error(str(ex))
             return 1
 
@@ -786,7 +786,7 @@ def main(argv):
         name, value = args[0], None
         try:
             setShortcut(name, value)
-        except GoError, ex:
+        except GoError as ex:
             error(str(ex))
             return 1
 
@@ -797,7 +797,7 @@ def main(argv):
         name, value = args
         try:
             setShortcut(name, value)
-        except GoError, ex:
+        except GoError as ex:
             error(str(ex))
             return 1
 
@@ -816,16 +816,16 @@ def main(argv):
 
             try:
                 generateShellScript(shellScript, path)
-            except KeyError, ex:
+            except KeyError as ex:
                 error("Unrecognized shortcut: '%s'" % str(ex))
                 return 1
-            except GoError, ex:
+            except GoError as ex:
                 error(str(ex))
                 return 1
         elif _subsystem == "windows" and sys.platform.startswith("win"):
             try:
                 dir = resolvePath(path)
-            except GoError, ex:
+            except GoError as ex:
                 error("Error resolving '%s': %s" % (path, ex))
                 return 1
             try:
@@ -853,7 +853,7 @@ def main(argv):
         
         try:
             path = resolvePath(args[0])
-            print path
+            print(path)
         except GoError as ex:
             error(ex)
             return 1
@@ -885,7 +885,7 @@ def main(argv):
 
         try:
             dir = resolvePath(path)
-        except GoError, ex:
+        except GoError as ex:
             error("Error resolving '%s': %s" % (path, ex))
             return 1
 
@@ -894,7 +894,7 @@ def main(argv):
                 import win32api
                 try:
                     explorerExe, offset = win32api.SearchPath(None, "explorer.exe")
-                except win32api.error, ex:
+                except win32api.error as ex:
                     error("Could not find 'explorer.exe': %s" % ex)
                     return 1
             except ImportError:
