@@ -1,27 +1,21 @@
 go -- quick directory switching
 ===============================
 
-Download the latest go packages from here:
-    (archive) http://go-tool.googlecode.com/files/go-1.2.1.zip
-
-
-Home            : http://trentm.com/projects/go/
+Home            : https://github.com/pageer/go-posh
 License         : MIT (see LICENSE.txt)
 Platforms       : Windows, Linux, Mac OS X, Unix
-Current Version : 1.2
+Current Version : 2.0
 Dev Status      : mature
-Requirements    : Python >= 2.4 (http://www.activestate.com/ActivePython/)
+Requirements    : Python >= 3.0
 
 
 What's new?
 -----------
 
-I have moved hosting of `go.py` from my [personal
-pages](http://trentm.com/projects/) to the [go-tool Google Code
-project](http://code.google.com/p/go-tool/).  See the [Change
-Log](#changelog) below for more.
+This fork is now its own project on GitHub and has been updated to work
+with Python 3.  See the [Change Log](#changelog) below for more.
 
-This release includes the following patches:
+This fork includes the following changes:
 * Added support for Powershell.
 * Made added built-in shortcut "-" pointing to the OLDPWD environment 
   variable (uses built-in shell support in UNIX, emulates in Windows).
@@ -34,6 +28,7 @@ This release includes the following patches:
   platforms (use FILE_MANAGER env var on UNIX).
 * Make -o option apply to current directory when no argument is given.
 * Added -p option to print the resolved shortcut path rather than cd to it.
+* Converted code to Python 3.
 
 
 Why go?
@@ -76,13 +71,10 @@ Download the latest (1) `go` source package, (2) unzip it, (3) run
 `python setup.py install` in the unzipped directory, and (4) run
 `python -m go` to setup the shell driver:
 
-    unzip go-1.2.0.zip
-    cd go-1.2.0
+    unzip go-posh-2.0.0.zip
+    cd go-2.0.0
     python setup.py install
     python -m go   # to setup shell integration
-
-If your install fails then please visit [the Troubleshooting
-FAQ](http://trentm.com/faq.html#troubleshooting-python-package-installation).
 
 Please note that the "go.bat" file for use with Windows cmd.exe does not work
 with Powershell.  To use go with Windows Powershell, you must set an environment 
@@ -175,6 +167,25 @@ Run `go --help` for full usage details or just [take a look at the
 
 Change Log
 ----------
+
+###v2.0.0
+- Convert to Python 3.
+- Clean up old stuff and dead links in readme.
+
+### v1.2.1
+- Forked from original codebase.
+- Added support for Powershell.
+- Made added built-in shortcut "-" pointing to the OLDPWD environment 
+  variable (uses built-in shell support in UNIX, emulates in Windows).
+- When invoked without any argument, change to home directory.
+- Resolve unique prefixes of shortcuts.
+- Resolve unique prefixes of path components.  For example, if "f" is a 
+  shortcut for C:\foo and C:\foo\bar\bazz exists, "go f/b/b" will go to it.
+- Detect home directory in Windows via USERPROFILE.
+- Made -o option work without win32api bindings and function on other 
+  platforms (use FILE_MANAGER env var on UNIX).
+- Make -o option apply to current directory when no argument is given.
+- Added -p option to print the resolved shortcut path rather than cd to it.
 
 ### v1.2.0
 - Add support for "go FOO" falling back to changing to subdirectory

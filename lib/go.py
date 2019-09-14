@@ -58,7 +58,7 @@
 #   On Linux (or other UN*X systems) this is typically:
 #     ~/.go/shortcuts.xml
 
-__version_info__ = (1, 2, 1)
+__version_info__ = (2, 0, 0)
 __version__ = '.'.join(map(str, __version_info__))
 
 import os
@@ -421,7 +421,7 @@ def printShortcuts(shortcuts, subheader=None):
                 grouped[title] = [shortcut]
     for memberList in grouped.values(): memberList.sort()
     groups = []
-    titles = groupMap.values()
+    titles = list(groupMap.values())
     titles.sort()
 
     # Construct the table.
