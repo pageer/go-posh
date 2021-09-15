@@ -97,13 +97,6 @@ class InternalGoError(GoError):
 _ENVAR = "GO_SHELL_SCRIPT"
 _FILEMAN_ENV = "FILEMANAGER"
 
-# On Windows, "console" or "windows" controls how some things behave.
-_SUBSYSTEM = "console"
-print(os.path.splitext(sys.executable)[0])
-if sys.platform.startswith("win") and\
-   os.path.splitext(sys.executable)[0][-1] == 'w':
-    _SUBSYSTEM = "windows"
-
 
 _gDriverFromShell = {
     "cmd": """\
@@ -439,28 +432,12 @@ def print_shortcuts(shortcuts, subheader=None):
             table += "  %-20s  %s\n" % (shortcut, directory)
 
     # Display the table.
-    if _SUBSYSTEM == "windows":
-        import win32ui
-        import win32con
-        win32ui.MessageBox(table, "Go Shortcuts",
-                           win32con.MB_OK | win32con.MB_ICONINFORMATION)
-
-    else:
-        sys.stdout.write(table)
+    sys.stdout.write(table)
 
 
 def error(msg):
     """Display an error message and raise an exception"""
-    if _SUBSYSTEM == "console":
-        sys.stderr.write("go: error: %s\n" % msg)
-    elif _SUBSYSTEM == "windows" and sys.platform.startswith("win"):
-        import win32ui
-        import win32con
-        win32ui.MessageBox(msg, "Go Error",
-                           win32con.MB_OK | win32con.MB_ICONERROR)
-    else:
-        raise ValueError("internal error: unrecognized subsystem, '%s', and "
-                         "platform, '%s'." % (_SUBSYSTEM, sys.platform))
+    sys.stderr.write("go: error: %s\n" % msg)
 
 
 def _get_shell():
@@ -717,8 +694,6 @@ def main(argv):
     try:
         shell_script = os.environ[_ENVAR]
     except KeyError:
-        if _SUBSYSTEM == "windows":
-            pass # Don't complain about missing console setup.
         setup()
         return 0
     else:
@@ -805,40 +780,15 @@ def main(argv):
         else:
             path = get_home_dir()
 
-        if _SUBSYSTEM == "console":
-
-            try:
-                generate_shell_script(shell_script, path)
-            except KeyError as ex:
-                error("Unrecognized shortcut: '%s'" % str(ex))
-                return 1
-            except GoError as ex:
-                error(str(ex))
-                return 1
-        elif _SUBSYSTEM == "windows" and sys.platform.startswith("win"):
-            try:
-                directory = resolve_path(path)
-            except GoError as ex:
-                error("Error resolving '%s': %s" % (path, ex))
-                return 1
-            try:
-                comspec = os.environ["COMSPEC"]
-            except KeyError:
-                error("Could not determine shell. No COMSPEC environment "
-                      "variable.")
-                return 1
-
-            argv = [comspec, "/k",      # Does command.com support '/k'?
-                    "cd", "/D", '"%s"' % directory]
-            if os.path.basename(comspec).lower() == "cmd.exe":
-                argv += ["&&", "title", '%s' % directory]
-
-            os.spawnv(os.P_NOWAIT, comspec, argv)
-
-        else:
-            error("Internal error: subsystem is 'windows' and platform is "
-                  "not win32")
+        try:
+            generate_shell_script(shell_script, path)
+        except KeyError as ex:
+            error("Unrecognized shortcut: '%s'" % str(ex))
             return 1
+        except GoError as ex:
+            error(str(ex))
+            return 1
+
     elif action == "print":
         if len(args) != 1:
             error("Incorrect number of arcuments. argv: %s" % argv)
@@ -883,18 +833,10 @@ def main(argv):
             return 1
 
         if sys.platform.startswith("win") and not os.environ.get(_FILEMAN_ENV):
-            try:
-                import win32api
-                try:
-                    explorer_exe, _ = win32api.SearchPath(None, "explorer.exe")
-                except win32api.error as ex:
-                    error("Could not find 'explorer.exe': %s" % ex)
-                    return 1
-            except ImportError:
-                explorer_exe = _find_on_path("explorer.exe")
-                if explorer_exe == 0:
-                    error("Could not find path to Explorer.exe")
-                    return 1
+            explorer_exe = _find_on_path("explorer.exe")
+            if explorer_exe == 0:
+                error("Could not find path to Explorer.exe")
+                return 1
 
             os.spawnv(os.P_NOWAIT, explorer_exe, [explorer_exe, '/E,"%s"' % directory])
         else:
