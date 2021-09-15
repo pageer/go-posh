@@ -40,7 +40,7 @@ setup(
     version=go.__version__,
     maintainer="Peter Geer",
     maintainer_email="pageer@skepticats.com",
-    url="http://github.com/pageer/go-/posh",
+    url="http://github.com/pageer/go-posh",
     license="http://www.opensource.org/licenses/mit-license.php",
     platforms=["any"],
     py_modules=["go"],
