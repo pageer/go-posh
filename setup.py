@@ -46,7 +46,7 @@ setup(
     py_modules=["go"],
     package_dir={"": "lib"},
     description=doclines[0],
-    classifiers=filter(None, classifiers.split("\n")),
+    classifiers=classifiers.split("\n"),
     long_description="\n".join(doclines[2:]),
 )
 
