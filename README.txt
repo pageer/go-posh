@@ -25,7 +25,7 @@ This fork includes the following changes:
   shortcut for C:\foo and C:\foo\bar\bazz exists, "go f/b/b" will go to it.
 * Detect home directory in Windows via USERPROFILE.
 * Made -o option work without win32api bindings and function on other 
-  platforms (use FILE_MANAGER env var on UNIX).
+  platforms (use FILEMANAGER env var on UNIX).
 * Make -o option apply to current directory when no argument is given.
 * Added -p option to print the resolved shortcut path rather than cd to it.
 * Converted code to Python 3.
@@ -168,6 +168,9 @@ Run `go --help` for full usage details or just [take a look at the
 Change Log
 ----------
 
+###v2.1.0
+- Cleanup old and unused stuff, fix a bunch of pylint errors.
+
 ###v2.0.0
 - Convert to Python 3.
 - Clean up old stuff and dead links in readme.
@@ -183,7 +186,7 @@ Change Log
   shortcut for C:\foo and C:\foo\bar\bazz exists, "go f/b/b" will go to it.
 - Detect home directory in Windows via USERPROFILE.
 - Made -o option work without win32api bindings and function on other 
-  platforms (use FILE_MANAGER env var on UNIX).
+  platforms (use FILEMANAGER env var on UNIX).
 - Make -o option apply to current directory when no argument is given.
 - Added -p option to print the resolved shortcut path rather than cd to it.
 

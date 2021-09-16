@@ -27,29 +27,7 @@
                                         to current directory.
         -l, --list [<pattern>]          list current shortcuts
 
-    Generally you have a set of directories that you commonly visit.
-    Typing these paths in full can be a pain. This script allows one to
-    define a set of directory shortcuts to be able to quickly change to
-    them. For example, I could define 'ko' to represent
-    "D:\\trentm\\main\\Apps\\Komodo-devel", then
-        C:\\> go ko
-        D:\\trentm\\main\\Apps\\Komodo-devel>
-    and
-        C:\\> go ko/test
-        D:\\trentm\\main\\Apps\\Komodo-devel\\test>
-
-    As well, you can always use some standard shortcuts, such as '~'
-    (home) and '...' (up two dirs).
-
-    In addition, go supports resolving unique prefixes of both shortcuts
-    and path components.  So the above example could also be written as:
-        C:\\> go k/t
-        D:\\trentm\\main\\Apps\\Komodo-devel\\test>
-    This is assuming that no other shortcut starts with "k" and the
-    Komodo-devel directory contains no other directory (files are OK)
-    that starts with "t".
-
-    See <http://code.google.com/p/go-tool/> for more information.
+    See <https://github.com/pageer/go-posh> for more information.
 """
 # Dev Notes:
 # - Shortcuts are stored in an XML file in your AppData folder.
@@ -78,17 +56,19 @@ from os.path import expanduser, exists, join, normcase, normpath
 class GoError(Exception):
     """External Go error"""
 
+class GoArgumentError(GoError):
+    """Incorrect number of arguments"""
+
 class InternalGoError(GoError):
     """Internal Go error"""
     def __str__(self):
         return GoError.__str__(self) + """
 
-* * * * * * * * * * * * * * * * * * * * * * * * * * * *
-* Please log a bug at                                 *
-*    http://code.google.com/p/go-tool/issues/list     *
-* to report this error. Thanks!                       *
-* -- Trent                                            *
-* * * * * * * * * * * * * * * * * * * * * * * * * * * *"""
+* * * * * * * * * * * * * * * * * * * * *
+* Please log a bug at                   *
+*    https://github.com/pageer/go-posh   *
+* to report this error. Thanks!         *
+* * * * * * * * * * * * * * * * * * * * *"""
 
 
 
@@ -101,13 +81,13 @@ _FILEMAN_ENV = "FILEMANAGER"
 _gDriverFromShell = {
     "cmd": """\
 @echo off
-rem Windows shell driver for 'go' (http://code.google.com/p/go-tool/).
+rem Windows shell driver for 'go' (https://github.com/pageer/go-posh).
 set GO_SHELL_SCRIPT=%TEMP%\\__tmp_go.bat
 call python -m go %1 %2 %3 %4 %5 %6 %7 %8 %9
 if exist %GO_SHELL_SCRIPT% call %GO_SHELL_SCRIPT%
 set GO_SHELL_SCRIPT=""",
     "powershell": """\
-# Windows Powershell driver for 'go' (http://code.google.com/p/go-tool/).
+# Windows Powershell driver for 'go' (https://github.com/pageer/go-posh).
 $env:SHELL = "powershell"
 $env:GO_SHELL_SCRIPT=$env:TEMP+"\\__tmp_go.ps1"
 python -m go $args
@@ -117,7 +97,7 @@ if (Test-Path $env:GO_SHELL_SCRIPT) {
 $env:GO_SHELL_SCRIPT = '';
 """,
     "sh": """\
-# Bash shell driver for 'go' (http://code.google.com/p/go-tool/).
+# Bash shell driver for 'go' (https://github.com/pageer/go-posh).
 function go {
     export GO_SHELL_SCRIPT=$HOME/.__tmp_go.sh
     python -m go $*
@@ -135,30 +115,13 @@ function go {
 def get_shortcuts_file():
     """Return the path to the shortcuts file."""
     fname = "shortcuts.xml"
-    if sys.platform.startswith("win"):
-        # Favour ~/.go if shortcuts.xml already exists there, otherwise
-        # favour CSIDL_APPDATA/... if have win32com to *find* that dir.
-        dname = os.path.expanduser("~/.go")
-        shortcuts_file = os.path.join(dname, fname)
-        if not os.path.isfile(shortcuts_file):
-            try:
-                from win32com.shell import shellcon, shell
-                dname = os.path.join(
-                    shell.SHGetFolderPath(0, shellcon.CSIDL_APPDATA, 0, 0),
-                    "TrentMick", "Go")
-                shortcuts_file = os.path.join(dname, fname)
-            except ImportError:
-                pass
-    else:
-        dname = os.path.expanduser("~/.go")
-        shortcuts_file = os.path.join(dname, fname)
+    dname = os.path.expanduser("~/.go")
+    shortcuts_file = os.path.join(dname, fname)
     return shortcuts_file
 
 
 def get_default_shortcuts():
     """Return the dictionary of default shortcuts."""
-    if sys.platform == "win32" and sys.version.startswith("2.3."):
-        warnings.filterwarnings("ignore", module="fcntl", lineno=7)
     shortcuts = {
         '.': os.curdir,
         '..': os.pardir,
@@ -241,43 +204,41 @@ def resolve_path(path):
     """
     shortcuts = get_shortcut()
 
-    if path:
-        tagend = path.find('/')
-        if tagend == -1:
-            tagend = path.find('\\')
-        if tagend == -1:
-            tag, suffix = path, None
-        else:
-            tag, suffix = path[:tagend], path[tagend+1:]
-
-        try:
-            target = shortcuts[tag]
-        except KeyError:
-            # Bash will expand ~ (used as a shortcut) into the user's
-            # actual home directory. We still want to support '~' as a
-            # shortcut in Bash so try to determine if it is likely that
-            # the user typed it and act accordingly.
-            home = os.path.expanduser('~')
-            if path.startswith(home) and path != home:
-                tag, suffix = '~', path[len(home)+1:]
-                target = shortcuts[tag]
-            elif get_shortcut_prefix(tag, shortcuts) != 0:
-                target = shortcuts[get_shortcut_prefix(tag, shortcuts)]
-            elif os.path.isdir(path):
-                target = ""
-                suffix = path
-            else:
-                suffix = path
-                target = tag
-                if target == '':
-                    target = os.path.sep
-                elif not os.path.isdir(target):
-                    target = '.'
-                #raise
-        if suffix:
-            target = resolve_full_path(target, suffix)
-    else:
+    if not path:
         raise GoError("no path was given")
+    tagend = path.find('/')
+    if tagend == -1:
+        tagend = path.find('\\')
+    if tagend == -1:
+        tag, suffix = path, None
+    else:
+        tag, suffix = path[:tagend], path[tagend+1:]
+
+    try:
+        target = shortcuts[tag]
+    except KeyError:
+        # Bash will expand ~ (used as a shortcut) into the user's
+        # actual home directory. We still want to support '~' as a
+        # shortcut in Bash so try to determine if it is likely that
+        # the user typed it and act accordingly.
+        home = os.path.expanduser('~')
+        if path.startswith(home) and path != home:
+            tag, suffix = '~', path[len(home)+1:]
+            target = shortcuts[tag]
+        elif get_shortcut_prefix(tag, shortcuts) != 0:
+            target = shortcuts[get_shortcut_prefix(tag, shortcuts)]
+        elif os.path.isdir(path):
+            target = ""
+            suffix = path
+        else:
+            suffix = path
+            target = tag
+            if target == '':
+                target = os.path.sep
+            elif not os.path.isdir(target):
+                target = '.'
+    if suffix:
+        target = resolve_full_path(target, suffix)
 
     return target
 
@@ -387,9 +348,7 @@ def generate_shell_script(script_name, path=None):
 def print_shortcuts(shortcuts, subheader=None):
     """Print out a table of defined shortcuts"""
     # Organize the shortcuts into groups.
-    defaults = []
-    for shortcut in get_default_shortcuts():
-        defaults.append(shortcut)
+    defaults = get_default_shortcuts()
     group_map = { # mapping of group regex to group order and title
         "^(%s)$" % '|'.join(defaults): (0, "Default shortcuts"),
         None: (1, "Custom shortcuts"),
@@ -400,17 +359,15 @@ def print_shortcuts(shortcuts, subheader=None):
     for shortcut in shortcuts:
         for pattern, (_, title) in group_map.items():
             if pattern and re.search(pattern, shortcut):
-                if title in grouped:
-                    grouped[title].append(shortcut)
-                else:
-                    grouped[title] = [shortcut]
+                if title not in grouped:
+                    grouped[title] = []
+                grouped[title].append(shortcut)
                 break
         else:
             title = "Custom shortcuts"
-            if title in grouped:
-                grouped[title].append(shortcut)
-            else:
-                grouped[title] = [shortcut]
+            if title not in grouped:
+                grouped[title] = []
+            grouped[title].append(shortcut)
     for member_list in grouped.values():
         member_list.sort()
     titles = list(group_map.values())
@@ -419,8 +376,7 @@ def print_shortcuts(shortcuts, subheader=None):
     # Construct the table.
     table = ""
     header = "Go Shortcuts"
-    if subheader:
-        header += ": " + subheader
+    header += (": " + subheader) if subheader else ""
     table += ' '*20 + header + '\n'
     table += ' '*20 + '='*len(header) + '\n'
     for _, title in titles:
@@ -437,7 +393,7 @@ def print_shortcuts(shortcuts, subheader=None):
 
 def error(msg):
     """Display an error message and raise an exception"""
-    sys.stderr.write("go: error: %s\n" % msg)
+    sys.stderr.write("Error: %s\n" % msg)
 
 
 def _get_shell():
@@ -450,7 +406,6 @@ def _get_shell():
         if "powershell" in shell_path:
             return "powershell"
     elif sys.platform == "win32":
-        #assert "cmd.exe" in os.environ["ComSpec"]
         return "cmd"
     raise InternalGoError("couldn't determine your shell (SHELL=%r)"
                           % os.environ.get("SHELL"))
@@ -463,110 +418,12 @@ def setup():
     except KeyError as err:
         raise InternalGoError("don't know how to setup for your shell: {shell}") from err
 
-    # Knowing the user's HOME dir will help later.
-    nhome = None
-    if "HOME" in os.environ:
-        nhome = _normpath(os.environ["HOME"])
-    elif "HOMEDRIVE" in os.environ and "HOMEPATH" in os.environ:
-        nhome = _normpath(
-            os.environ["HOMEDRIVE"] + os.environ["HOMEPATH"])
-
     print("* * *")
 
-
     if shell in ("cmd", "powershell"):
-        # Need a install candidate dir for "go.bat"/"go.ps1".
-        if shell == "cmd":
-            shell_script_name = "go.bat"
-        else:
-            shell_script_name = "go.ps1"
-
-        nprefix = _normpath(sys.prefix)
-        ncandidates = set()
-        candidates = []
-        for directory in os.environ["PATH"].split(os.path.pathsep):
-            ndir = _normpath(directory)
-            if ndir.startswith(nprefix):
-                if ndir not in ncandidates:
-                    ncandidates.add(ndir)
-                    candidates.append(directory)
-            elif nhome and ndir.startswith(nhome) \
-                 and ndir[len(nhome)+1:].count(os.path.sep) < 2:
-                if ndir not in ncandidates:
-                    ncandidates.add(ndir)
-                    candidates.append(directory)
-        #print candidates
-
-        print("""\
-It appears that `go' is not setup properly in your environment. Typing
-`go' must end up calling `%s' somewhere on your PATH and *not* `go.py'
-directly. This is how `go' can change the directory in your current shell.
-
-You'll need a file "%s" with the following contents in a directory on
-your PATH:
-
-%s""" % (shell_script_name, shell_script_name, _indent(driver)))
-
-        if candidates:
-            print("\nCandidate directories are:\n")
-            for i, directory in enumerate(candidates):
-                print("  [%s] %s" % (i+1, directory))
-
-            print()
-            answer = _query_custom_answers(
-                f"If you would like this script to create `{shell_script_name}' for you in\n"
-                    "one of these directories, enter the number of that\n"
-                    "directory. Otherwise, enter 'no' to not create `{shell_script_name}'." ,
-                [str(i+1) for i in range(len(candidates))] + ["&no"],
-                default="no",
-            )
-            if answer == "no":
-                pass
-            else:
-                directory = candidates[int(answer)-1]
-                path = join(directory, shell_script_name)
-                print("\nCreating `%s'." % path)
-                print("You should now be able to run `go --help'.")
-                with open(path, 'w', encoding='utf-8') as file:
-                    file.write(driver)
+        _setup_for_windows(driver)
     elif shell == "sh":
-        print("""\
-It appears that `go' is not setup properly in your environment. Typing
-`go' must end up calling the Bash function `go' and *not* `go.py'
-directly. This is how `go' can change the directory in your current shell.
-
-You'll need to have the following function in your shell startup script
-(e.g. `.bashrc' or `.profile'):
-
-%s
-
-To just play around in your current shell, simple cut and paste this
-function.""" % _indent(driver))
-
-        candidates = ["~/.bashrc", "~/.bash_profile", "~/.bash_login",
-                      "~/.profile"]
-        candidates = [c for c in candidates if exists(expanduser(c))]
-        if candidates:
-            question = """\
-Would you like this script to append `function go' to one of the following
-Bash initialization scripts? If so, enter the number of the listed file.
-Otherwise, enter `no'."""
-            for i, path in enumerate(candidates):
-                question += "\n (%d) %s" % (i+1, path)
-            answers = [str(i+1) for i in range(len(candidates))] + ["&no"]
-            print()
-            answer = _query_custom_answers(question, answers, default="no")
-            if answer == "no":
-                pass
-            else:
-                path = candidates[int(answer)-1]
-                xpath = expanduser(path)
-                with codecs.open(xpath, 'a', encoding='utf-8') as file:
-                    file.write('\n\n'+driver)
-                print()
-                print("`function go' appended to `%s'." % path)
-                print("Run `source %s` to enable this for this shell." % path)
-                print("You should then be able to run `go --help'.")
+        _setup_for_unix(driver)
     else:
         print("""\
 It appears that `go' is not setup properly in your environment. Typing
@@ -580,11 +437,102 @@ The appropriate function for the *Bash* shell is this:
 If you know the appropriate translation for your shell (%s) I'd appreciate
 your feedback on that so I can update this script. Please add an issue here:
 
-    http://code.google.com/p/go-tool/issues/list
+    https://github.com/pageer/go-posh
 
 Thanks!""" % (_indent(_gDriverFromShell["sh"]), shell))
 
     print("* * *")
+
+
+def _setup_for_windows(driver):
+    shell = _get_shell()
+    nhome = _normpath(get_home_dir())
+    # Need a install candidate dir for "go.bat"/"go.ps1".
+    shell_script_name = "go.bat" if shell == "cmd" else "go.ps1"
+
+    nprefix = _normpath(sys.prefix)
+    ncandidates = set()
+    candidates = []
+    for directory in os.environ["PATH"].split(os.path.pathsep):
+        ndir = _normpath(directory)
+        if ndir.startswith(nprefix) and ndir not in ncandidates:
+            ncandidates.add(ndir)
+            candidates.append(directory)
+        elif nhome and ndir.startswith(nhome) \
+                and ndir[len(nhome)+1:].count(os.path.sep) < 2 \
+                and ndir not in ncandidates:
+            ncandidates.add(ndir)
+            candidates.append(directory)
+
+    print("""\
+It appears that `go' is not setup properly in your environment. Typing
+`go' must end up calling `%s' somewhere on your PATH and *not* `go.py'
+directly. This is how `go' can change the directory in your current shell.
+
+You'll need a file "%s" with the following contents in a directory on
+your PATH:
+
+%s""" % (shell_script_name, shell_script_name, _indent(driver)))
+
+    if candidates:
+        print("\nCandidate directories are:\n")
+        for i, directory in enumerate(candidates):
+            print("  [%s] %s" % (i+1, directory))
+
+        print()
+        answer = _query_custom_answers(
+            f"If you would like this script to create `{shell_script_name}' for you in\n"
+                "one of these directories, enter the number of that\n"
+                "directory. Otherwise, enter 'no' to not create `{shell_script_name}'." ,
+            [str(i+1) for i in range(len(candidates))] + ["&no"],
+            default="no",
+        )
+        if answer != "no":
+            directory = candidates[int(answer)-1]
+            path = join(directory, shell_script_name)
+            print("\nCreating `%s'." % path)
+            print("You should now be able to run `go --help'.")
+            with open(path, 'w', encoding='utf-8') as file:
+                file.write(driver)
+
+
+def _setup_for_unix(driver):
+    print("""\
+It appears that `go' is not setup properly in your environment. Typing
+`go' must end up calling the Bash function `go' and *not* `go.py'
+directly. This is how `go' can change the directory in your current shell.
+
+You'll need to have the following function in your shell startup script
+(e.g. `.bashrc' or `.profile'):
+
+%s
+
+To just play around in your current shell, simple cut and paste this
+function.""" % _indent(driver))
+
+    candidates = ["~/.bashrc", "~/.bash_profile", "~/.bash_login",
+                  "~/.profile"]
+    candidates = [c for c in candidates if exists(expanduser(c))]
+    if candidates:
+        question = """\
+Would you like this script to append `function go' to one of the following
+Bash initialization scripts? If so, enter the number of the listed file.
+Otherwise, enter `no'."""
+        for i, path in enumerate(candidates):
+            question += "\n (%d) %s" % (i+1, path)
+        answers = [str(i+1) for i in range(len(candidates))] + ["&no"]
+        print()
+        answer = _query_custom_answers(question, answers, default="no")
+        if answer != "no":
+            path = candidates[int(answer)-1]
+            xpath = expanduser(path)
+            with codecs.open(xpath, 'a', encoding='utf-8') as file:
+                file.write('\n\n'+driver)
+            print()
+            print("`function go' appended to `%s'." % path)
+            print("Run `source %s` to enable this for this shell." % path)
+            print("You should then be able to run `go --help'.")
+
 
 
 # Recipe: query_custom_answers (1.0)
@@ -674,17 +622,143 @@ def _normpath(path):
 
 def get_home_dir():
     """Get the user's home directory"""
-    ret = ''
+    for var in ['HOME', 'USERPROFILE']:
+        if var in os.environ:
+            return os.environ[var]
+
+    if 'HOMEPATH' in os.environ and 'HOMEDRIVE' in os.environ:
+        return os.environ["HOMEDRIVE"] + os.environ["HOMEPATH"]
+
+    error('Cannot find home directory.')
+    return ''
+
+
+def _assert_arg_count(args, exact=None, minnum=None, maxnum=None):
+    if exact is not None and len(args) != exact:
+        raise GoArgumentError()
+    if minnum is not None and len(args) < minnum:
+        raise GoArgumentError()
+    if maxnum is not None and len(args) > maxnum:
+        raise GoArgumentError()
+
+
+def _add_action(args):
+    _assert_arg_count(args, exact=1)
+    name, value = args[0], os.getcwd()
     try:
-        ret = os.environ['HOME']
-    except KeyError:
+        set_shortcut(name, value)
+    except GoError as ex:
+        error(str(ex))
+        return 1
+    return 0
+
+
+def _delete_action(args):
+    _assert_arg_count(args, exact=1)
+    name, value = args[0], None
+    try:
+        set_shortcut(name, value)
+    except GoError as ex:
+        error(str(ex))
+        return 1
+    return 0
+
+
+def _set_action(args):
+    _assert_arg_count(args, exact=2)
+    name, value = args
+    try:
+        set_shortcut(name, value)
+    except GoError as ex:
+        error(str(ex))
+        return 1
+    return 0
+
+
+def _cd_action(args):
+    _assert_arg_count(args, maxnum=1)
+    if len(args) == 1:
+        path = args[0]
+    else:
+        path = get_home_dir()
+
+    shell_script = os.environ[_ENVAR]
+    try:
+        generate_shell_script(shell_script, path)
+    except KeyError as ex:
+        error("Unrecognized shortcut: '%s'" % str(ex))
+        return 1
+    except GoError as ex:
+        error(str(ex))
+        return 1
+    return 0
+
+
+def _print_action(args):
+    _assert_arg_count(args, exact=1)
+    try:
+        path = resolve_path(args[0])
+        print(path)
+    except GoError as ex:
+        error(ex)
+        return 1
+    return 0
+
+
+def _list_action(args):
+    _assert_arg_count(args, maxnum=1)
+    if len(args) == 0:
+        print_shortcuts(get_shortcut())
+    elif len(args) == 1:
+        pattern = args[0].lower()
+        shortcuts = get_shortcut()
+        matching_shortcuts = {}
+        for name, value in shortcuts.items():
+            if name.lower().find(pattern) != -1:
+                matching_shortcuts[name] = value
+        print_shortcuts(matching_shortcuts, "Matching '%s'" % pattern)
+    return 0
+
+
+def _open_action(args):
+    _assert_arg_count(args, maxnum=1)
+    if len(args) == 0:
+        args.append(os.getcwd())
+
+    path = args[0]
+
+    try:
+        directory = resolve_path(path)
+    except GoError as ex:
+        error("Error resolving '%s': %s" % (path, ex))
+        return 1
+
+    if sys.platform.startswith("win") and not os.environ.get(_FILEMAN_ENV):
+        explorer_exe = _find_on_path("explorer.exe")
+        if explorer_exe == 0:
+            error("Could not find path to Explorer.exe")
+            return 1
+
+        os.spawnv(os.P_NOWAIT, explorer_exe, [explorer_exe, '/E,"%s"' % directory])
+    else:
         try:
-            ret = os.environ['USERPROFILE']
+            if sys.platform.startswith('darwin') and not os.environ.get(_FILEMAN_ENV):
+                file_man = '/usr/bin/open'
+            else:
+                file_man = os.environ[_FILEMAN_ENV]
+            if not os.path.exists(file_man):
+                file_man = _find_on_path(file_man)
+                if file_man == 0:
+                    error("Could not find path to '%s'" % file_man)
+                    return 1
+            os.spawnv(os.P_NOWAIT, file_man, [file_man, directory])
+
         except KeyError:
-            error('Cannot find home directory.')
-    return ret
-
-
+            error(
+                "No file manager found.  " +
+                f"Set the {_FILEMAN_ENV} environment variable to set one."
+            )
+    return 0
 #---- mainline
 
 def main(argv):
@@ -707,162 +781,57 @@ def main(argv):
         optlist, args = getopt.getopt(argv[1:], shortopts, longopts)
     except getopt.GetoptError as ex:
         msg = ex.msg
-        if ex.opt in ('d', 'dump'):
-            msg += ": old -d|--dump option is now -l|--list"
         sys.stderr.write("go: error: %s.\n" % msg)
         sys.stderr.write("See 'go --help'.\n")
         return 1
+
+    option_map = {
+        "-c": "cd",
+        "--cd": "cd",
+        "-p": "print",
+        "--print": "print",
+        "-s": "set",
+        "--set": "set",
+        "-a": "add",
+        "--add-current": "add",
+        "-d": "delete",
+        "--delete": "delete",
+        "-l": "list",
+        "--list": "list",
+        "-o": "open",
+        "--open": "open",
+    }
+
     action = "cd"
     for opt, _ in optlist:
         if opt in ('-h', '--help'):
             sys.stdout.write(__doc__)
             return 0
         if opt in ('-V', '--version'):
-            sys.stdout.write("go %s\n" % __version__)
+            sys.stdout.write("%s\n" % __version__)
             return 0
-        if opt in ('-c', '--cd'):
-            action = "cd"
-        elif opt in ('-p', '--print'):
-            action = "print"
-        elif opt in ('-s', '--set'):
-            action = "set"
-        elif opt in ('-a', '--add-current'):
-            action = "add"
-        elif opt in ('-d', '--delete'):
-            action = "delete"
-        elif opt in ('-l', '--list'):
-            action = "list"
-        elif opt in ("-o", "--open"):
-            action = "open"
+        action = option_map.get(opt, 'cd')
 
-    # Parse arguments and do specified action.
-    if action == "add":
-        if len(args) != 1:
+    action_map = {
+        'add': _add_action,
+        'delete': _delete_action,
+        'set': _set_action,
+        'cd': _cd_action,
+        'print': _print_action,
+        'list': _list_action,
+        'open': _open_action,
+    }
+
+    if action in action_map:
+        try:
+            callback = action_map[action]
+            return callback(args)
+        except GoArgumentError as arg_error:
             error("Incorrect number of arguments. argv: %s" % argv)
             return 1
-        name, value = args[0], os.getcwd()
-        try:
-            set_shortcut(name, value)
-        except GoError as ex:
-            error(str(ex))
-            return 1
+    error("Internal Error: unknown action: '%s'\n")
+    return 1
 
-    elif action == "delete":
-        if len(args) != 1:
-            error("Incorrect number of arguments. argv: %s" % argv)
-            return 1
-        name, value = args[0], None
-        try:
-            set_shortcut(name, value)
-        except GoError as ex:
-            error(str(ex))
-            return 1
-
-    elif action == "set":
-        if len(args) != 2:
-            error("Incorrect number of arguments. argv: %s" % argv)
-            return 1
-        name, value = args
-        try:
-            set_shortcut(name, value)
-        except GoError as ex:
-            error(str(ex))
-            return 1
-
-    elif action == "cd":
-        if len(args) > 1:
-            error("Incorrect number of arguments. argv: %s" % argv)
-            #error("Usage: go [options...] shortcut[/subpath]")
-            return 1
-
-        if len(args) == 1:
-            path = args[0]
-        else:
-            path = get_home_dir()
-
-        try:
-            generate_shell_script(shell_script, path)
-        except KeyError as ex:
-            error("Unrecognized shortcut: '%s'" % str(ex))
-            return 1
-        except GoError as ex:
-            error(str(ex))
-            return 1
-
-    elif action == "print":
-        if len(args) != 1:
-            error("Incorrect number of arcuments. argv: %s" % argv)
-            return 1
-
-        try:
-            path = resolve_path(args[0])
-            print(path)
-        except GoError as ex:
-            error(ex)
-            return 1
-
-    elif action == "list":
-        if len(args) == 0:
-            print_shortcuts(get_shortcut())
-        elif len(args) == 1:
-            pattern = args[0].lower()
-            shortcuts = get_shortcut()
-            matching_shortcuts = {}
-            for name, value in shortcuts.items():
-                if name.lower().find(pattern) != -1:
-                    matching_shortcuts[name] = value
-            print_shortcuts(matching_shortcuts, "Matching '%s'" % pattern)
-        else:
-            error("Incorrect number of arguments. argv: %s" % argv)
-            return 1
-
-    elif action == "open":
-
-        if len(args) > 1:
-            error("Incorrect number of arguments. argv: %s" % argv)
-            return 1
-        if len(args) == 0:
-            args.append(os.getcwd())
-
-        path = args[0]
-
-        try:
-            directory = resolve_path(path)
-        except GoError as ex:
-            error("Error resolving '%s': %s" % (path, ex))
-            return 1
-
-        if sys.platform.startswith("win") and not os.environ.get(_FILEMAN_ENV):
-            explorer_exe = _find_on_path("explorer.exe")
-            if explorer_exe == 0:
-                error("Could not find path to Explorer.exe")
-                return 1
-
-            os.spawnv(os.P_NOWAIT, explorer_exe, [explorer_exe, '/E,"%s"' % directory])
-        else:
-            try:
-                if sys.platform.startswith('darwin') and not os.environ.get(_FILEMAN_ENV):
-                    file_man = '/usr/bin/open'
-                else:
-                    file_man = os.environ[_FILEMAN_ENV]
-                if not os.path.exists(file_man):
-                    file_man = _find_on_path(file_man)
-                    if file_man == 0:
-                        error("Could not find path to '%s'" % file_man)
-                        return 1
-                os.spawnv(os.P_NOWAIT, file_man, [file_man, directory])
-
-            except KeyError:
-                error(
-                    "No file manager found.  " +
-                    f"Set the {_FILEMAN_ENV} environment variable to set one."
-                )
-
-    else:
-        error("Internal Error: unknown action: '%s'\n")
-        return 1
-
-    return 0
 
 def _find_on_path(prog):
     """Find the file prog on the system PATH.
