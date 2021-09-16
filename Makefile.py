@@ -19,17 +19,6 @@ from mklib import sh
 
 
 
-class bugs(Task):
-    """Open bug database page."""
-    def make(self):
-        webbrowser.open("http://code.google.com/p/go-tool/issues/list")
-
-class site(Task):
-    """Open the Google Code project page."""
-    def make(self):
-        webbrowser.open("http://code.google.com/p/go-tool/")
-
-
 class clean(Task):
     """Clean generated files and dirs."""
     def make(self):
@@ -52,46 +41,6 @@ class sdist(Task):
                         % _setup_command_prefix(),
                       self.dir, self.log.debug)
 
-class webdist(Task):
-    """Build a web dist package for trentm.com/projects/
-    
-    "Web dist" packages are zip files with '.web' extension. All files in
-    the zip must be under a dir named after the project. There must be a
-    webinfo.xml file at <projname>/webinfo.xml. This file is "defined"
-    by the parsing in trentm.com/build.py.
-    """ 
-    deps = ["docs"]
-
-    def results(self):
-        yield join(self.dir, "dist", "go-%s.web" % _get_version())
-
-    def make(self):
-        assert sys.platform != "win32", "'webdist' not implemented for win32"
-        build_dir = join(self.dir, "build", "webdist")
-        zip_dir = join(build_dir, "go")
-        if exists(build_dir):
-            sh.rm(build_dir)
-        os.makedirs(zip_dir)
-
-        # Copy the webdist bits to the build tree.
-        manifest = [
-            "src/trentm.com/project-info.xml",
-            "src/trentm.com/index.markdown",
-            "LICENSE.txt",
-            "lib/go.py",
-            "src/trentm.com/logo.jpg",
-        ]
-        for src in manifest:
-            sh.cp(src, dstdir=zip_dir, log=self.log.info)
-
-        # Zip up the webdist contents.
-        dist_dir = join(self.dir, "dist")
-        bit = abspath(join(dist_dir, "go-%s.web" % _get_version()))
-        if exists(bit):
-            os.remove(bit)
-        if not exists(dist_dir):
-            os.makedirs(dist_dir)
-        sh.run_in_dir("zip -r %s go" % bit, build_dir, self.log.info)
 
 class pypi_upload(Task):
     """Upload release to pypi."""
@@ -107,61 +56,6 @@ class pypi_upload(Task):
         import webbrowser
         webbrowser.open_new(url)
 
-class googlecode_upload(Task):
-    """Upload sdist to Google Code project site."""
-    deps = ["sdist"]
-    def make(self):
-        helper_in_cwd = exists(join(self.dir, "googlecode_upload.py"))
-        if helper_in_cwd:
-            sys.path.insert(0, self.dir)
-        try:
-            import googlecode_upload
-        except ImportError:
-            raise MkError("couldn't import `googlecode_upload` (get it from http://support.googlecode.com/svn/trunk/scripts/googlecode_upload.py)")
-        if helper_in_cwd:
-            del sys.path[0]
-
-        ver = _get_version()
-        sdist_path = join(self.dir, "dist", "go-%s.zip" % ver)
-        status, reason, url = googlecode_upload.upload_find_auth(
-            sdist_path,
-            "go-tool", # project_name
-            "go %s source package" % ver, # summary
-            ["Featured", "Type-Archive"]) # labels
-        if not url:
-            raise MkError("couldn't upload sdist to Google Code: %s (%s)"
-                          % (reason, status))
-        self.log.info("uploaded sdist to `%s'", url)
-
-        project_url = "http://code.google.com/p/go-tool/"
-        import webbrowser
-        webbrowser.open_new(project_url)
-
-class trentm_com_upload(Task):
-    """Upload webdist to trentm.com bits (in prep for updating trentm.com)."""
-    deps = ["webdist"]
-    def make(self):
-        ver = _get_version()
-        dist_dir = join(self.dir, "dist")
-
-        paths = [join(dist_dir, "go-%s%s" % (ver, ext))
-                 for ext in [".web"]]
-
-        # Upload the bits.
-        user = "trentm"
-        host = "trentm.com"
-        remote_dir = "~/data/bits/go/%s" % _get_version()
-        if sys.platform == "win32":
-            ssh = "plink"
-            scp = "pscp -unsafe"
-        else:
-            ssh = "ssh"
-            scp = "scp"
-        sh.run("%s %s@%s 'mkdir -p %s'" % (ssh, user, host, remote_dir),
-               self.log.info)
-        for path in paths:
-            sh.run("%s %s %s@%s:%s" % (scp, path, user, host, remote_dir),
-                   self.log.info)
 
 class todo(Task):
     """Print out todo's and xxx's in the docs area."""
@@ -179,27 +73,6 @@ class todo(Task):
     def _dump_pattern_in_path(self, pattern, path):
         os.system("grep -nH '%s' '%s'" % (pattern, path))
 
-
-class gow(Task):
-    """Build the Windows 'gow.exe' launcher exe for DQSD integration."""
-    def make(self):
-        assert sys.platform == "win32", "can only build `gow.exe' on Windows"
-        sh.run_in_dir("nmake -f Makefile.win", join("src", "dqsd"))
-
-class docs(Task):
-    """Regenerate some doc bits from project-info.xml."""
-    deps = ["src/trentm.com/project-info.xml"]
-    results = [
-        "README.txt",
-        "src/trentm.com/index.markdown"
-    ]
-    def make(self):
-        project_info_xml = join("src", "trentm.com", "project-info.xml")
-        index_markdown = join("src", "trentm.com", "index.markdown")
-        sh.run_in_dir("projinfo -f %s -R -o README.txt --force"
-                      % project_info_xml, self.dir)
-        sh.run_in_dir("projinfo -f %s --index-markdown -o %s --force"
-                      % (project_info_xml, index_markdown), self.dir)
 
 class check_version(Task):
     """grep for version strings in source code

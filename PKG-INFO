@@ -1,10 +1,10 @@
 Metadata-Version: 1.0
 Name: go
-Version: 1.2.1
+Version: 2.1.0
 Summary: Quick directory changing (super-cd)
-Home-page: http://code.google.com/p/go-tool/
-Author: Trent Mick
-Author-email: trentm@gmail.com
+Home-page: https://github.com/pageer/go-posh
+Author: Peter Geer
+Author-email: pageer@skepticats.com
 License: http://www.opensource.org/licenses/mit-license.php
 Description: 'go' is a simple command line script to simplify jumping between
         directories in the shell. You can create shortcut names for commonly
